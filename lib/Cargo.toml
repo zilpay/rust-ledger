@@ -24,29 +24,30 @@ android = [
 ]
 
 # Transport features
-transport_usb = [ "hidapi" ]
+transport_usb = ["dep:hidapi"]
 transport_tcp = []
-transport_ble_desktop = [ "btleplug" ]
-transport_ble_ios = [ "core_bluetooth", "objc", "objc-foundation" ]
-transport_ble_android = [ "btleplug" ]
+transport_ble_desktop = ["dep:btleplug"]
+transport_ble_ios = ["dep:core_bluetooth", "dep:objc", "dep:objc-foundation"]
+transport_ble_android = ["dep:btleplug"]
 
-# USB backend features
-transport_usb_libusb = [ "hidapi/linux-static-libusb" ]
-transport_usb_hidraw = [ "hidapi/linux-static-hidraw" ]
+# USB backend features (only included when transport_usb is enabled)
+transport_usb_libusb = ["hidapi?/linux-static-libusb"]
+transport_usb_hidraw = ["hidapi?/linux-static-hidraw"]
 
 # Enable `clap` attributes on exported objects
-clap = [ "dep:clap" ]
+clap = ["dep:clap"]
 
-# Enable `async_fn_in_trait` nightly feature, removes need for `async_trait` macros
+# Enable `async_fn_in_trait` nightly feature
 unstable_async_trait = []
 
 # Default is desktop platform configuration
-default = [ "desktop" ]
+default = []
 
 [dependencies]
+# Core dependencies that are always required
 thiserror = "1.0.40"
 encdec = "0.9.0"
-ledger-proto = { version = "0.1.0", default-features = false, features = [ "std" ] }
+ledger-proto = { version = "0.1.0", default-features = false, features = ["std"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 strum = { version = "0.24.1", features = ["derive"] }
@@ -57,7 +58,7 @@ futures = "0.3.28"
 async-trait = "0.1.68"
 displaydoc = "0.2.4"
 
-# Optional dependencies
+# Optional dependencies that are feature-gated
 clap = { version = "4.2.2", optional = true }
 hidapi = { version = "2.1.2", optional = true, default-features = false }
 btleplug = { version = "0.10.5", optional = true }

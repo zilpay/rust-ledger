@@ -112,19 +112,19 @@ mod tests {
                 ButtonAction {
                     action: Action::Press,
                 },
-                rtransport_ble_desktop{"action":"press"}"#,
+                r#"{"action":"press"}"#,
             ),
             (
                 ButtonAction {
                     action: Action::Release,
                 },
-                rtransport_ble_desktop{"action":"release"}"#,
+                r#"{"action":"release"}"#,
             ),
             (
                 ButtonAction {
                     action: Action::PressAndRelease,
                 },
-                rtransport_ble_desktop{"action":"press-and-release"}"#,
+                r#"{"action":"press-and-release"}"#,
             ),
         ];
 
