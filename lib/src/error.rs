@@ -13,7 +13,7 @@ pub enum Error {
     #[error(transparent)]
     Tcp(#[from] tokio::io::Error),
 
-    #[cfg(feature = "transport_ble")]
+    #[cfg(feature = "transport_ble_desktop")]
     #[error(transparent)]
     Ble(#[from] btleplug::Error),
 

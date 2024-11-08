@@ -1,6 +1,6 @@
 //! USB HID transport implementation
 //!
-//! # SAFETY
+//! transport_ble_desktopSAFETY
 //!
 //! This is _not_ `Send` or thread safe, see [transport][crate::transport] docs for
 //! more details.
@@ -49,7 +49,7 @@ fn u16_parse_hex(s: &str) -> Result<u16, std::num::ParseIntError> {
 
 /// USB HID based transport
 ///
-/// # Safety
+/// transport_ble_desktopSafety
 /// Due to `hidapi` this is not thread safe an only one instance must exist in an application.
 /// If you don't need low-level control see [crate::LedgerProvider] for a tokio based wrapper.
 pub struct UsbTransport {

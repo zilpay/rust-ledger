@@ -14,7 +14,7 @@
 //! deserialisation errors across APDU objects.
 //!
 //!
-//! ## Examples
+//! #[cfg(feature = "transport_ble_desktop")]ransport_ble_desktopExamples
 //!
 //! Command APDU (no body) using [ApduStatic]:
 //!

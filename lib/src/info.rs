@@ -30,7 +30,7 @@ impl LedgerInfo {
             ConnInfo::Usb(_) => ConnType::Usb,
             #[cfg(feature = "transport_tcp")]
             ConnInfo::Tcp(_) => ConnType::Tcp,
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             ConnInfo::Ble(_) => ConnType::Ble,
         }
     }
@@ -75,7 +75,7 @@ pub enum ConnInfo {
     Usb(transport::UsbInfo),
     #[cfg(feature = "transport_tcp")]
     Tcp(transport::TcpInfo),
-    #[cfg(feature = "transport_ble")]
+    #[cfg(feature = "transport_ble_desktop")]
     Ble(transport::BleInfo),
 }
 
@@ -105,7 +105,7 @@ impl std::fmt::Display for ConnInfo {
             Self::Usb(i) => write!(f, "HID {}", i),
             #[cfg(feature = "transport_tcp")]
             Self::Tcp(i) => write!(f, "TCP {}", i),
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             Self::Ble(i) => write!(f, "BLE {}", i),
         }
     }
@@ -125,7 +125,7 @@ impl From<transport::TcpInfo> for ConnInfo {
     }
 }
 
-#[cfg(feature = "transport_ble")]
+#[cfg(feature = "transport_ble_desktop")]
 impl From<transport::BleInfo> for ConnInfo {
     fn from(value: transport::BleInfo) -> Self {
         Self::Ble(value)

@@ -40,7 +40,7 @@ impl ProviderContext {
 
         // Setup runtime with local set just for this task
         // Required for 'ProviderCtx::new' to be callable from withing a `tokio::spawn` context,
-        // see: https://docs.rs/tokio/latest/tokio/task/struct.LocalSet.html#use-inside-tokiospawn
+        // see: https://docs.rs/tokio/latest/tokio/task/struct.LocalSet.htmltransport_ble_desktopse-inside-tokiospawn
         let rt = Builder::new_current_thread()
             .enable_all()
             .build()

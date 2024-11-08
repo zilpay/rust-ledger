@@ -3,7 +3,7 @@
 //! Transports are gated by `transport_X` features, while [GenericTransport] and
 //! [GenericDevice] provide an abstraction over enabled transports.
 //!
-//! # Safety
+//! transport_ble_desktopSafety
 //! [UsbTransport] (and thus [GenericTransport] when `transport_usb` feature is enabled)
 //! is _not_ `Send` or `Sync`, however this is marked as such to appease `async_trait`...
 //!
@@ -14,7 +14,7 @@
 
 use std::{fmt::Debug, time::Duration};
 
-#[cfg(feature = "transport_ble")]
+#[cfg(feature = "transport_ble_desktop")]
 use tracing::warn;
 
 use tracing::debug;
@@ -24,9 +24,9 @@ mod usb;
 #[cfg(feature = "transport_usb")]
 pub use usb::{UsbDevice, UsbInfo, UsbTransport};
 
-#[cfg(feature = "transport_ble")]
+#[cfg(feature = "transport_ble_desktop")]
 mod ble;
-#[cfg(feature = "transport_ble")]
+#[cfg(feature = "transport_ble_desktop")]
 pub use ble::{BleDevice, BleInfo, BleTransport};
 
 #[cfg(feature = "transport_tcp")]
@@ -82,7 +82,7 @@ pub struct GenericTransport {
     #[cfg(feature = "transport_usb")]
     usb: UsbTransport,
 
-    #[cfg(feature = "transport_ble")]
+    #[cfg(feature = "transport_ble_desktop")]
     ble: BleTransport,
 
     #[cfg(feature = "transport_tcp")]
@@ -95,7 +95,7 @@ pub enum GenericDevice {
     #[cfg(feature = "transport_usb")]
     Usb(UsbDevice),
 
-    #[cfg(feature = "transport_ble")]
+    #[cfg(feature = "transport_ble_desktop")]
     Ble(BleDevice),
 
     #[cfg(feature = "transport_tcp")]
@@ -111,7 +111,7 @@ impl GenericTransport {
             #[cfg(feature = "transport_usb")]
             usb: UsbTransport::new()?,
 
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             ble: BleTransport::new().await?,
 
             #[cfg(feature = "transport_tcp")]
@@ -136,7 +136,7 @@ impl Transport for GenericTransport {
             devices.append(&mut d);
         }
 
-        #[cfg(feature = "transport_ble")]
+        #[cfg(feature = "transport_ble_desktop")]
         if filters == Filters::Any || filters == Filters::Ble {
             // BLE discovery is allowed to fail if not exclusively selected
             // as dbus does not always provide the relevant service (eg. under WSL)
@@ -169,7 +169,7 @@ impl Transport for GenericTransport {
             ConnInfo::Usb(i) => self.usb.connect(i).await.map(GenericDevice::Usb)?,
             #[cfg(feature = "transport_tcp")]
             ConnInfo::Tcp(i) => self.tcp.connect(i).await.map(GenericDevice::Tcp)?,
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             ConnInfo::Ble(i) => self.ble.connect(i).await.map(GenericDevice::Ble)?,
         };
 
@@ -183,7 +183,7 @@ impl GenericDevice {
         match self {
             #[cfg(feature = "transport_usb")]
             GenericDevice::Usb(d) => d.info.clone().into(),
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             GenericDevice::Ble(d) => d.info.clone().into(),
             #[cfg(feature = "transport_tcp")]
             GenericDevice::Tcp(d) => d.info.clone().into(),
@@ -194,7 +194,7 @@ impl GenericDevice {
         match self {
             #[cfg(feature = "transport_usb")]
             GenericDevice::Usb(d) => d.is_connected().await,
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             GenericDevice::Ble(d) => d.is_connected().await,
             #[cfg(feature = "transport_tcp")]
             GenericDevice::Tcp(d) => d.is_connected().await,
@@ -209,7 +209,7 @@ impl Exchange for GenericDevice {
         match self {
             #[cfg(feature = "transport_usb")]
             Self::Usb(d) => d.exchange(command, timeout).await,
-            #[cfg(feature = "transport_ble")]
+            #[cfg(feature = "transport_ble_desktop")]
             Self::Ble(d) => d.exchange(command, timeout).await,
             #[cfg(feature = "transport_tcp")]
             Self::Tcp(d) => d.exchange(command, timeout).await,
@@ -231,7 +231,7 @@ impl From<TcpDevice> for GenericDevice {
     }
 }
 
-#[cfg(feature = "transport_ble")]
+#[cfg(feature = "transport_ble_desktop")]
 impl From<BleDevice> for GenericDevice {
     fn from(value: BleDevice) -> Self {
         Self::Ble(value)

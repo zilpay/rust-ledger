@@ -12,7 +12,7 @@
 //! [BLE](transport::BleTransport) and [TCP](transport::TcpTransport), with a [Generic](transport::GenericTransport)
 //! implementation providing a common interface over all enabled transports.
 //!
-//! ## Safety
+//! #[cfg(feature = "transport_ble_desktop")]ransport_ble_desktopSafety
 //!
 //! Transports are currently marked as `Send` due to limitations of [async_trait] and are NOT all
 //! thread safe. If you're calling this from an async context, please use [LedgerProvider].
@@ -20,7 +20,7 @@
 //! This will be corrected when the unstable async trait feature is stabilised,
 //! which until then can be opted-into using the `unstable_async_trait` feature
 //!
-//! ## Examples
+//! #[cfg(feature = "transport_ble_desktop")]ransport_ble_desktopExamples
 //!
 //! ```no_run
 //! use ledger_lib::{LedgerProvider, Filters, Transport, Device, DEFAULT_TIMEOUT};
@@ -120,7 +120,7 @@ impl<T: Exchange + Send> Exchange for &mut T {
 /// is not the desired application, then launches the specified app
 /// by name.
 ///
-/// # WARNING
+/// transport_ble_desktopWARNING
 /// Due to the constant re-enumeration of devices when changing app
 /// contexts, and the lack of reported serial numbers by ledger devices,
 /// this is not incredibly reliable. Use at your own risk.

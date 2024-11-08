@@ -5,10 +5,10 @@
 //! execution, with a [Generic](GenericDriver) abstraction to support
 //! runtime driver selection.
 //!
-//! ### Examples:
+//! ##[cfg(feature = "transport_ble_desktop")]ransport_ble_desktopExamples:
 //!
 //! ``` no_run
-//! # use tracing::{debug};
+//! transport_ble_desktopuse tracing::{debug};
 //! use ledger_sim::{GenericDriver, DriverMode, Driver, Model, Options};
 //! use ledger_lib::{Device, transport::{Transport, TcpTransport, TcpInfo}, DEFAULT_TIMEOUT};
 //! use ledger_proto::apdus::{AppInfoReq, AppInfoResp};
