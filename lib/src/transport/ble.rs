@@ -2,6 +2,7 @@
 
 use std::{fmt::Display, pin::Pin, time::Duration};
 
+#[cfg(feature = "transport_ble_desktop")]
 use btleplug::{
     api::{
         BDAddr, Central as _, Characteristic, Manager as _, Peripheral, ScanFilter,

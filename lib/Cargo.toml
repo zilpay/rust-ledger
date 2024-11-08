@@ -41,7 +41,7 @@ clap = ["dep:clap"]
 unstable_async_trait = []
 
 # Default is desktop platform configuration
-default = []
+default = ["ios"]
 
 [dependencies]
 # Core dependencies that are always required
