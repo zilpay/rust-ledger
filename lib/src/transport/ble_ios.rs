@@ -202,7 +202,7 @@ impl Transport for BleTransport {
                     peripheral: p,
                     error,
                 } if p.id() == peripheral.id() => {
-                    return Err(error.unwrap_or(Error::Unknown));
+                    return Err(Error::Unknown);
                 }
                 _ => {}
             }
@@ -211,65 +211,68 @@ impl Transport for BleTransport {
         debug!("Connected to peripheral");
 
         // Discover services
-        peripheral.discover_services_with_uuids(&[specs.service_uuid]);
+        let uuid = Uuid::from_bytes(*specs.service_uuid.as_bytes());
+        peripheral.discover_services_with_uuids(&[uuid]);
 
         // Wait for services discovery
-        let mut service = None;
-        while let Ok(event) = self.receiver.recv() {
-            match event {
-                CentralEvent::ServicesDiscovered {
-                    peripheral: p,
-                    services,
-                } if p.id() == peripheral.id() => {
-                    service = services.ok()?.into_iter().next();
-                    break;
-                }
-                _ => {}
-            }
-        }
+        // let mut service = None;
+        // while let Ok(event) = self.receiver.recv() {
+        //     match event {
+        //         CentralEvent::ServicesDiscovered {
+        //             peripheral: p,
+        //             services,
+        //         } if p.id() == peripheral.id() => {
+        //             service = services.ok()?.into_iter().next();
+        //             break;
+        //         }
+        //         _ => {}
+        //     }
+        // }
 
-        let service = service.ok_or(Error::Unknown)?;
-        debug!("Discovered service: {:?}", service.id());
+        // let service = service.ok_or(Error::Unknown)?;
+        // debug!("Discovered service: {:?}", service.id());
 
-        // Discover characteristics
-        peripheral
-            .discover_characteristics_with_uuids(&service, &[specs.notify_uuid, specs.write_uuid]);
+        // // Discover characteristics
+        // peripheral
+        //     .discover_characteristics_with_uuids(&service, &[specs.notify_uuid, specs.write_uuid]);
 
-        // Wait for characteristics discovery
-        let mut write_characteristic = None;
-        let mut notify_characteristic = None;
+        // // Wait for characteristics discovery
+        // let mut write_characteristic = None;
+        // let mut notify_characteristic = None;
 
-        while let Ok(event) = self.receiver.recv() {
-            match event {
-                CentralEvent::CharacteristicsDiscovered {
-                    peripheral: p,
-                    characteristics,
-                    ..
-                } if p.id() == peripheral.id() => {
-                    let characteristics = characteristics.map_err(|_| Error::Unknown)?;
-                    for characteristic in characteristics {
-                        if characteristic.id() == specs.write_uuid {
-                            write_characteristic = Some(characteristic);
-                        } else if characteristic.id() == specs.notify_uuid {
-                            notify_characteristic = Some(characteristic);
-                        }
-                    }
-                    break;
-                }
-                _ => {}
-            }
-        }
+        // while let Ok(event) = self.receiver.recv() {
+        //     match event {
+        //         CentralEvent::CharacteristicsDiscovered {
+        //             peripheral: p,
+        //             characteristics,
+        //             ..
+        //         } if p.id() == peripheral.id() => {
+        //             let characteristics = characteristics.map_err(|_| Error::Unknown)?;
+        //             for characteristic in characteristics {
+        //                 if characteristic.id() == specs.write_uuid {
+        //                     write_characteristic = Some(characteristic);
+        //                 } else if characteristic.id() == specs.notify_uuid {
+        //                     notify_characteristic = Some(characteristic);
+        //                 }
+        //             }
+        //             break;
+        //         }
+        //         _ => {}
+        //     }
+        // }
 
-        // Create device instance
-        let device = BleDevice {
-            info: info.clone(),
-            mtu: 23, // Default MTU
-            peripheral,
-            write_characteristic,
-            notify_characteristic,
-        };
+        // // Create device instance
+        // let device = BleDevice {
+        //     info: info.clone(),
+        //     mtu: 23, // Default MTU
+        //     peripheral,
+        //     write_characteristic,
+        //     notify_characteristic,
+        // };
 
-        Ok(device)
+        // Ok(device)
+
+        Err(Error::Unknown)
     }
 }
 
