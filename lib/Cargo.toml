@@ -47,7 +47,9 @@ default = ["ios"]
 # Core dependencies that are always required
 thiserror = "1.0.40"
 encdec = "0.9.0"
-ledger-proto = { version = "0.1.0", default-features = false, features = ["std"] }
+# ledger-proto = { version = "0.1.0", default-features = false, features = ["std"] }
+ledger-proto = { path = "../proto", default-features = false, features = ["std"]  }
+
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 strum = { version = "0.24.1", features = ["derive"] }
