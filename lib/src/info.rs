@@ -31,10 +31,10 @@ impl LedgerInfo {
             #[cfg(feature = "transport_tcp")]
             ConnInfo::Tcp(_) => ConnType::Tcp,
             #[cfg(any(
-        feature = "transport_ble_desktop",
-        feature = "transport_ble_ios",
-        // feature = "transport_ble_android"
-    ))]
+                feature = "transport_ble_desktop",
+                feature = "transport_ble_ios",
+                feature = "transport_ble_android"
+            ))]
             ConnInfo::Ble(_) => ConnType::Ble,
         }
     }
@@ -114,10 +114,10 @@ impl std::fmt::Display for ConnInfo {
             #[cfg(feature = "transport_tcp")]
             Self::Tcp(i) => write!(f, "TCP {}", i),
             #[cfg(any(
-        feature = "transport_ble_desktop",
-        feature = "transport_ble_ios",
-        // feature = "transport_ble_android"
-    ))]
+                feature = "transport_ble_desktop",
+                feature = "transport_ble_ios",
+                feature = "transport_ble_android"
+            ))]
             Self::Ble(i) => write!(f, "BLE {}", i),
         }
     }
@@ -137,7 +137,11 @@ impl From<transport::TcpInfo> for ConnInfo {
     }
 }
 
-#[cfg(feature = "transport_ble_desktop")]
+#[cfg(any(
+    feature = "transport_ble_desktop",
+    feature = "transport_ble_ios",
+    feature = "transport_ble_android"
+))]
 impl From<transport::BleInfo> for ConnInfo {
     fn from(value: transport::BleInfo) -> Self {
         Self::Ble(value)

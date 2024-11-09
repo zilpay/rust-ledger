@@ -7,7 +7,7 @@ use core_bluetooth::{
         CentralEvent, CentralManager,
     },
     uuid::Uuid,
-    ManagerState, Receiver,
+    Receiver,
 };
 use std::{fmt::Display, time::Duration};
 use tracing::{debug, warn};
@@ -45,7 +45,6 @@ pub struct BleDevice {
     peripheral: Peripheral,
     characteristic_write: Characteristic,
     characteristic_read: Characteristic,
-    central: CentralManager,
     receiver: Receiver<CentralEvent>,
 }
 
@@ -88,21 +87,6 @@ impl BleTransport {
             receiver,
             peripherals: vec![],
         })
-    }
-
-    async fn wait_for_power_on(&mut self) -> Result<(), Error> {
-        while let Ok(event) = self.receiver.recv() {
-            if let CentralEvent::ManagerStateChanged { new_state } = event {
-                match new_state {
-                    ManagerState::PoweredOn => return Ok(()),
-                    ManagerState::Unsupported => return Err(Error::Unknown),
-                    ManagerState::Unauthorized => return Err(Error::Unknown),
-                    ManagerState::PoweredOff => continue,
-                    _ => continue,
-                }
-            }
-        }
-        Err(Error::Unknown)
     }
 
     /// Helper to scan for available BLE devices
@@ -304,7 +288,7 @@ impl Transport for BleTransport {
         }
 
         // Create a new CentralManager for the device
-        let (central, receiver) = CentralManager::new();
+        let (_central, receiver) = CentralManager::new();
 
         // Create device instance
         let device = BleDevice {
@@ -313,7 +297,6 @@ impl Transport for BleTransport {
             peripheral: peripheral.clone(),
             characteristic_write: write_char,
             characteristic_read: notify_char,
-            central,
             receiver,
         };
 
@@ -321,11 +304,11 @@ impl Transport for BleTransport {
     }
 }
 
-const BLE_HEADER_LEN: usize = 3;
+pub const BLE_HEADER_LEN: usize = 3;
 
 impl BleDevice {
     /// Helper to write commands as chunks based on device MTU
-    async fn write_command(&mut self, cmd: u8, payload: &[u8]) -> Result<(), Error> {
+    pub async fn write_command(&mut self, cmd: u8, payload: &[u8]) -> Result<(), Error> {
         let mut data = Vec::with_capacity(payload.len() + 2);
         data.extend_from_slice(&(payload.len() as u16).to_be_bytes());
         data.extend_from_slice(payload);
