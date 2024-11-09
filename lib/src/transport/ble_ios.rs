@@ -10,7 +10,7 @@ use core_bluetooth::{
     ManagerState, Receiver,
 };
 use std::{fmt::Display, time::Duration};
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, warn};
 
 use super::{Exchange, Transport};
 use crate::{
@@ -43,8 +43,10 @@ pub struct BleDevice {
     pub info: BleInfo,
     mtu: u8,
     peripheral: Peripheral,
-    write_characteristic: Characteristic,
-    notify_characteristic: Characteristic,
+    characteristic_write: Characteristic,
+    characteristic_read: Characteristic,
+    central: CentralManager,
+    receiver: Receiver<CentralEvent>,
 }
 
 /// Bluetooth spec for ledger devices
@@ -301,13 +303,21 @@ impl Transport for BleTransport {
             }
         }
 
-        Ok(BleDevice {
+        // Create a new CentralManager for the device
+        let (central, receiver) = CentralManager::new();
+
+        // Create device instance
+        let device = BleDevice {
             info: info.clone(),
+            mtu: 23,
             peripheral: peripheral.clone(),
-            write_characteristic: write_char,
-            notify_characteristic: notify_char,
-            mtu: 23, // Default MTU
-        })
+            characteristic_write: write_char,
+            characteristic_read: notify_char,
+            central,
+            receiver,
+        };
+
+        Ok(device)
     }
 }
 
@@ -316,166 +326,35 @@ const BLE_HEADER_LEN: usize = 3;
 impl BleDevice {
     /// Helper to write commands as chunks based on device MTU
     async fn write_command(&mut self, cmd: u8, payload: &[u8]) -> Result<(), Error> {
-        // Get write characteristic
-        let write_characteristic = self
-            .write_characteristic
-            .as_ref()
-            .ok_or_else(|| Error::Unknown)?;
-
-        // Setup outgoing data (adds 2-byte big endian length prefix)
         let mut data = Vec::with_capacity(payload.len() + 2);
-        data.extend_from_slice(&(payload.len() as u16).to_be_bytes()); // Data length
-        data.extend_from_slice(payload); // Data
+        data.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+        data.extend_from_slice(payload);
 
         debug!("TX cmd: 0x{cmd:02x} payload: {data:02x?}");
 
-        // Write APDU in chunks
-        for (i, c) in data.chunks(self.mtu as usize - BLE_HEADER_LEN).enumerate() {
-            // Setup chunk buffer
+        for (i, chunk) in data.chunks(self.mtu as usize - BLE_HEADER_LEN).enumerate() {
             let mut buff = Vec::with_capacity(self.mtu as usize);
-            let cmd = match i == 0 {
-                true => cmd,
-                false => 0x03,
-            };
+            let cmd = if i == 0 { cmd } else { 0x03 };
 
-            buff.push(cmd); // Command
-            buff.extend_from_slice(&(i as u16).to_be_bytes()); // Sequence ID
-            buff.extend_from_slice(c);
+            buff.push(cmd);
+            buff.extend_from_slice(&(i as u16).to_be_bytes());
+            buff.extend_from_slice(chunk);
 
-            trace!("Write chunk {i}: {:02x?}", buff);
+            debug!("Write chunk {i}: {:02x?}", buff);
 
             self.peripheral.write_characteristic(
-                write_characteristic,
+                &self.characteristic_write,
                 &buff,
                 WriteKind::WithResponse,
             );
-
-            // Wait for write completion
-            while let Ok(event) = self.receiver.recv() {
-                match event {
-                    CentralEvent::WriteCharacteristicResult {
-                        peripheral,
-                        characteristic,
-                        result,
-                    } if peripheral.id() == self.peripheral.id()
-                        && characteristic.id() == write_characteristic.id() =>
-                    {
-                        result.map_err(|_| Error::Unknown)?;
-                        break;
-                    }
-                    _ => {}
-                }
-            }
         }
 
         Ok(())
     }
 
-    /// Helper to read response packet from notification channel
-    async fn read_data(&mut self) -> Result<Vec<u8>, Error> {
-        // Get notify characteristic
-        let notify_characteristic = self
-            .notify_characteristic
-            .as_ref()
-            .ok_or_else(|| Error::Unknown)?;
-
-        // Enable notifications
-        self.peripheral.subscribe(notify_characteristic);
-
-        // Wait for subscription result
-        while let Ok(event) = self.receiver.recv() {
-            match event {
-                CentralEvent::SubscriptionChangeResult {
-                    peripheral,
-                    characteristic,
-                    result,
-                } if peripheral.id() == self.peripheral.id()
-                    && characteristic.id() == notify_characteristic.id() =>
-                {
-                    result.map_err(|_| Error::Unknown)?;
-                    break;
-                }
-                _ => {}
-            }
-        }
-
-        // Await first response
-        let mut value = None;
-        while let Ok(event) = self.receiver.recv() {
-            match event {
-                CentralEvent::CharacteristicValue {
-                    peripheral,
-                    characteristic,
-                    value: val,
-                } if peripheral.id() == self.peripheral.id()
-                    && characteristic.id() == notify_characteristic.id() =>
-                {
-                    value = Some(val.map_err(|_| Error::Unknown)?);
-                    break;
-                }
-                _ => {}
-            }
-        }
-
-        let value = value.ok_or(Error::Closed)?;
-        debug!("RX: {:02x?}", value);
-
-        // Check response length is reasonable
-        if value.len() < 5 {
-            error!("response too short");
-            return Err(Error::UnexpectedResponse);
-        } else if value[0] != 0x05 {
-            error!("unexpected response type: {:?}", value[0]);
-            return Err(Error::UnexpectedResponse);
-        }
-
-        // Read out full response length
-        let len = value[4] as usize;
-        if len == 0 {
-            return Err(Error::EmptyResponse);
-        }
-
-        trace!("Expecting response length: {}", len);
-
-        // Setup response buffer
-        let mut buff = Vec::with_capacity(len);
-        buff.extend_from_slice(&value[5..]);
-
-        // Read further responses
-        while buff.len() < len {
-            let mut value = None;
-            while let Ok(event) = self.receiver.recv() {
-                match event {
-                    CentralEvent::CharacteristicValue {
-                        peripheral,
-                        characteristic,
-                        value: val,
-                    } if peripheral.id() == self.peripheral.id()
-                        && characteristic.id() == notify_characteristic.id() =>
-                    {
-                        value = Some(val.map_err(|_| Error::Unknown)?);
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-
-            let value = value.ok_or(Error::Closed)?;
-            debug!("RX: {value:02x?}");
-
-            // Add received data to buffer
-            buff.extend_from_slice(&value[5..]);
-        }
-
-        // Disable notifications
-        self.peripheral.unsubscribe(notify_characteristic);
-
-        Ok(buff)
-    }
-
     pub(crate) async fn is_connected(&self) -> Result<bool, Error> {
-        // Core Bluetooth doesn't have a direct "is connected" API
-        // We'll assume connected until we get a disconnect event
+        // Core Bluetooth doesn't provide direct way to check connection status
+        // Assume connected if we have valid device
         Ok(true)
     }
 }
@@ -483,18 +362,52 @@ impl BleDevice {
 #[cfg_attr(not(feature = "unstable_async_trait"), async_trait::async_trait)]
 impl Exchange for BleDevice {
     async fn exchange(&mut self, command: &[u8], timeout: Duration) -> Result<Vec<u8>, Error> {
-        // Write command data
-        if let Err(e) = self.write_command(0x05, command).await {
-            return Err(e);
+        // Subscribe to notifications
+        self.peripheral.subscribe(&self.characteristic_read);
+
+        // Write command
+        let mut data = Vec::with_capacity(command.len() + 2);
+        data.extend_from_slice(&(command.len() as u16).to_be_bytes());
+        data.extend_from_slice(command);
+
+        self.peripheral.write_characteristic(
+            &self.characteristic_write,
+            &data,
+            core_bluetooth::central::characteristic::WriteKind::WithResponse,
+        );
+
+        // Wait for response through events
+        let start = std::time::Instant::now();
+        let mut response = None;
+
+        // Trigger characteristic read
+        self.peripheral
+            .read_characteristic(&self.characteristic_read);
+
+        // Process events through central manager
+        while response.is_none() && start.elapsed() < timeout {
+            if let Ok(event) = self.receiver.recv() {
+                if let CentralEvent::CharacteristicValue {
+                    characteristic,
+                    value,
+                    ..
+                } = event
+                {
+                    if characteristic.id() == self.characteristic_read.id() {
+                        if let Ok(data) = value {
+                            response = Some(data);
+                        }
+                    }
+                }
+            }
         }
 
-        debug!("Await response");
+        // Unsubscribe
+        self.peripheral.unsubscribe(&self.characteristic_read);
 
-        // Wait for response with timeout
-        match tokio::time::timeout(timeout, self.read_data()).await {
-            Ok(Ok(buff)) => Ok(buff),
-            Ok(Err(e)) => Err(e),
-            Err(e) => Err(e.into()),
+        match response {
+            Some(data) => Ok(data),
+            None => Err(Error::Timeout),
         }
     }
 }

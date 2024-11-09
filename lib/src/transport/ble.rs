@@ -1,3 +1,4 @@
+//! File lib/src/transport/ble.rs
 //! Bluetooth Low Energy (BLE) transport
 
 use std::{fmt::Display, pin::Pin, time::Duration};
