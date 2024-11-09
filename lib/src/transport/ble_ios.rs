@@ -7,9 +7,9 @@ use core_bluetooth::{
         CentralEvent, CentralManager,
     },
     uuid::Uuid,
-    Receiver,
+    ManagerState, Receiver,
 };
-use std::{fmt::Display, str::FromStr, time::Duration};
+use std::{fmt::Display, time::Duration};
 use tracing::{debug, error, trace, warn};
 
 use super::{Exchange, Transport};
@@ -43,8 +43,8 @@ pub struct BleDevice {
     pub info: BleInfo,
     mtu: u8,
     peripheral: Peripheral,
-    write_characteristic: Option<Characteristic>,
-    notify_characteristic: Option<Characteristic>,
+    write_characteristic: Characteristic,
+    notify_characteristic: Characteristic,
 }
 
 /// Bluetooth spec for ledger devices
@@ -86,6 +86,21 @@ impl BleTransport {
             receiver,
             peripherals: vec![],
         })
+    }
+
+    async fn wait_for_power_on(&mut self) -> Result<(), Error> {
+        while let Ok(event) = self.receiver.recv() {
+            if let CentralEvent::ManagerStateChanged { new_state } = event {
+                match new_state {
+                    ManagerState::PoweredOn => return Ok(()),
+                    ManagerState::Unsupported => return Err(Error::Unknown),
+                    ManagerState::Unauthorized => return Err(Error::Unknown),
+                    ManagerState::PoweredOff => continue,
+                    _ => continue,
+                }
+            }
+        }
+        Err(Error::Unknown)
     }
 
     /// Helper to scan for available BLE devices
@@ -193,18 +208,17 @@ impl Transport for BleTransport {
         // Wait for connection
         while let Ok(event) = self.receiver.recv() {
             match event {
-                CentralEvent::PeripheralConnected { peripheral: p }
+                CentralEvent::PeripheralConnected { peripheral: p, .. }
                     if p.id() == peripheral.id() =>
                 {
                     break;
                 }
-                CentralEvent::PeripheralConnectFailed {
-                    peripheral: p,
-                    error,
-                } if p.id() == peripheral.id() => {
+                CentralEvent::PeripheralConnectFailed { peripheral: p, .. }
+                    if p.id() == peripheral.id() =>
+                {
                     return Err(Error::Unknown);
                 }
-                _ => {}
+                _ => continue,
             }
         }
 
@@ -215,64 +229,85 @@ impl Transport for BleTransport {
         peripheral.discover_services_with_uuids(&[uuid]);
 
         // Wait for services discovery
-        // let mut service = None;
-        // while let Ok(event) = self.receiver.recv() {
-        //     match event {
-        //         CentralEvent::ServicesDiscovered {
-        //             peripheral: p,
-        //             services,
-        //         } if p.id() == peripheral.id() => {
-        //             service = services.ok()?.into_iter().next();
-        //             break;
-        //         }
-        //         _ => {}
-        //     }
-        // }
+        let mut service = None;
+        while let Ok(event) = self.receiver.recv() {
+            match event {
+                CentralEvent::ServicesDiscovered {
+                    peripheral: p,
+                    services,
+                    ..
+                } if p.id() == peripheral.id() => match services {
+                    Ok(services) => {
+                        service = services.into_iter().next();
+                        break;
+                    }
+                    Err(_) => return Err(Error::Unknown),
+                },
+                _ => continue,
+            }
+        }
 
-        // let service = service.ok_or(Error::Unknown)?;
-        // debug!("Discovered service: {:?}", service.id());
+        let service = service.ok_or(Error::Unknown)?;
 
-        // // Discover characteristics
-        // peripheral
-        //     .discover_characteristics_with_uuids(&service, &[specs.notify_uuid, specs.write_uuid]);
+        let notify_uuid = Uuid::from_bytes(*specs.notify_uuid.as_bytes());
+        let write_uuid = Uuid::from_bytes(*specs.write_uuid.as_bytes());
 
-        // // Wait for characteristics discovery
-        // let mut write_characteristic = None;
-        // let mut notify_characteristic = None;
+        peripheral.discover_characteristics_with_uuids(&service, &[notify_uuid, write_uuid]);
 
-        // while let Ok(event) = self.receiver.recv() {
-        //     match event {
-        //         CentralEvent::CharacteristicsDiscovered {
-        //             peripheral: p,
-        //             characteristics,
-        //             ..
-        //         } if p.id() == peripheral.id() => {
-        //             let characteristics = characteristics.map_err(|_| Error::Unknown)?;
-        //             for characteristic in characteristics {
-        //                 if characteristic.id() == specs.write_uuid {
-        //                     write_characteristic = Some(characteristic);
-        //                 } else if characteristic.id() == specs.notify_uuid {
-        //                     notify_characteristic = Some(characteristic);
-        //                 }
-        //             }
-        //             break;
-        //         }
-        //         _ => {}
-        //     }
-        // }
+        let mut notify_char = None;
+        let mut write_char = None;
 
-        // // Create device instance
-        // let device = BleDevice {
-        //     info: info.clone(),
-        //     mtu: 23, // Default MTU
-        //     peripheral,
-        //     write_characteristic,
-        //     notify_characteristic,
-        // };
+        while let Ok(event) = self.receiver.recv() {
+            match event {
+                CentralEvent::CharacteristicsDiscovered {
+                    peripheral: p,
+                    characteristics,
+                    ..
+                } if p.id() == peripheral.id() => match characteristics {
+                    Ok(chars) => {
+                        for char in chars {
+                            if char.id() == notify_uuid {
+                                notify_char = Some(char);
+                            } else if char.id() == write_uuid {
+                                write_char = Some(char);
+                            }
+                        }
+                        break;
+                    }
+                    Err(_) => return Err(Error::Unknown),
+                },
+                _ => continue,
+            }
+        }
 
-        // Ok(device)
+        let notify_char = notify_char.ok_or(Error::Unknown)?;
+        let write_char = write_char.ok_or(Error::Unknown)?;
 
-        Err(Error::Unknown)
+        // Subscribe to notifications
+        peripheral.subscribe(&notify_char);
+
+        // Wait for successful subscription
+        while let Ok(event) = self.receiver.recv() {
+            match event {
+                CentralEvent::SubscriptionChangeResult {
+                    peripheral: p,
+                    result,
+                    ..
+                } if p.id() == peripheral.id() => match result {
+                    Ok(_) => break,
+                    Err(_) => return Err(Error::Unknown),
+                },
+                _ => continue,
+            }
+        }
+
+        Ok(BleDevice {
+            info: info.clone(),
+            peripheral: peripheral.clone(),
+            write_characteristic: write_char,
+            notify_characteristic: notify_char,
+            mtu: 23, // Default MTU
+        })
     }
 }
 
